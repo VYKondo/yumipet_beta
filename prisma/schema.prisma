@@ -1,0 +1,114 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Settings {
+  id           String   @id @default("singleton")
+  businessName String   @map("business_name")
+  phone        String?
+  timezone     String   @default("America/Sao_Paulo")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
+
+model Dog {
+  id           String        @id @default(uuid())
+  name         String
+  breed        String?
+  tutorName    String        @map("tutor_name")
+  tutorPhone   String        @map("tutor_phone")
+  active       Boolean       @default(true)
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  appointments Appointment[]
+
+  @@map("dogs")
+}
+
+model Service {
+  id                 String        @id @default(uuid())
+  name               String
+  basePrice          Decimal       @map("base_price") @db.Decimal(10, 2)
+  defaultDurationMin Int           @map("default_duration_min")
+  active             Boolean       @default(true)
+  createdAt          DateTime      @default(now()) @map("created_at")
+  appointments       Appointment[]
+
+  @@map("services")
+}
+
+model Appointment {
+  id                       String            @id @default(uuid())
+  dogId                    String            @map("dog_id")
+  serviceId                String            @map("service_id")
+  scheduledAt              DateTime          @map("scheduled_at")
+  durationMin              Int               @map("duration_min")
+  price                    Decimal           @db.Decimal(10, 2)
+  taxidogPrice             Decimal           @default(0) @map("taxidog_price") @db.Decimal(10, 2)
+  notes                    String?
+  contactPhone             String            @map("contact_phone")
+  status                   AppointmentStatus @default(SCHEDULED)
+  whatsappReminderSentAt   DateTime?         @map("whatsapp_reminder_sent_at")
+  whatsappReminderAttempts Int               @default(0) @map("whatsapp_reminder_attempts")
+  createdAt                DateTime          @default(now()) @map("created_at")
+  updatedAt                DateTime          @updatedAt @map("updated_at")
+  dog                      Dog               @relation(fields: [dogId], references: [id])
+  service                  Service           @relation(fields: [serviceId], references: [id])
+  logs                     WhatsappLog[]
+
+  @@index([scheduledAt, status])
+  @@map("appointments")
+}
+
+model MessageTemplate {
+  id               String   @id @default(uuid())
+  name             String   @default("Confirmação padrão")
+  metaTemplateName String   @map("meta_template_name")
+  languageCode     String   @default("pt_BR") @map("language_code")
+  variableOrder    String[] @map("variable_order")
+  previewContent   String   @map("preview_content")
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@map("message_templates")
+}
+
+model WhatsappLog {
+  id            String       @id @default(uuid())
+  appointmentId String       @map("appointment_id")
+  direction     LogDirection
+  status        LogStatus
+  metaMessageId String?      @map("meta_message_id")
+  error         String?
+  createdAt     DateTime     @default(now()) @map("created_at")
+  appointment   Appointment  @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  @@index([appointmentId])
+  @@map("whatsapp_logs")
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  DONE
+  CANCELED
+  NO_SHOW
+}
+
+enum LogDirection {
+  OUTBOUND
+  INBOUND
+}
+
+enum LogStatus {
+  SENT
+  FAILED
+  RECEIVED
+}
