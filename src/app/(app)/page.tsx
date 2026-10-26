@@ -1,91 +1,163 @@
 import { prisma } from "@/server/db";
 import { requireUser } from "@/server/auth";
-import { startOfDaySP, endOfDaySP, tomorrowSP } from "@/lib/dates";
+import Link from "next/link";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 
-export default async function DashboardPage() {
+export const dynamic = "force-dynamic";
+
+export default async function AppPage() {
   await requireUser();
 
-  const todayStart = startOfDaySP(new Date());
-  const todayEnd = endOfDaySP(new Date());
-  const tomorrowStart = startOfDaySP(tomorrowSP());
-  const tomorrowEnd = endOfDaySP(tomorrowSP());
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999);
 
-  const [todayAppointments, tomorrowAppointments] = await Promise.all([
-    prisma.appointment.findMany({
-      where: {
-        scheduledAt: { gte: todayStart, lte: todayEnd },
-        status: { in: ["SCHEDULED", "CONFIRMED", "DONE"] },
-      },
-      include: { dog: true, service: true },
-      orderBy: { scheduledAt: "asc" },
-    }),
-    prisma.appointment.findMany({
-      where: {
-        scheduledAt: { gte: tomorrowStart, lte: tomorrowEnd },
-        status: { in: ["SCHEDULED", "CONFIRMED"] },
-      },
-      include: { dog: true, service: true },
-      orderBy: { scheduledAt: "asc" },
-    }),
-  ]);
+  const [dogsCount, servicesCount, appointmentsCount, todayAppointments] =
+    await Promise.all([
+      prisma.dog.count(),
+      prisma.service.count(),
+      prisma.appointment.count(),
+      prisma.appointment.findMany({
+        where: {
+          scheduledAt: { gte: todayStart, lte: todayEnd },
+          status: { in: ["SCHEDULED", "CONFIRMED", "DONE"] },
+        },
+        include: { dog: true, service: true },
+        orderBy: { scheduledAt: "asc" },
+        take: 5,
+      }),
+    ]);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-6">
+      <PageHeader
+        title="Dashboard"
+        description="Resumo dos principais indicadores do petshop"
+      />
 
-      <section>
-        <h2 className="mb-2 text-lg font-semibold text-[#791286]">Hoje</h2>
-        {todayAppointments.length === 0 ? (
-          <p className="text-gray-500">Nenhum atendimento hoje.</p>
-        ) : (
-          <ul className="space-y-2">
-            {todayAppointments.map((a) => (
-              <li
-                key={a.id}
-                className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
-              >
-                <div className="flex justify-between">
-                  <span className="font-medium">{a.dog.name}</span>
-                  <span className="text-sm text-gray-600">
-                    {a.scheduledAt.toLocaleTimeString("pt-BR", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-500">{a.service.name}</p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-sm font-normal">Total de cães</CardTitle>
+            <CardDescription className="text-xs">{dogsCount}</CardDescription>
+          </CardHeader>
+          <CardFooter>
+            <Link href="/dogs" className="text-brand-primary text-sm hover:underline font-medium">
+              Ver cães →
+            </Link>
+          </CardFooter>
+        </Card>
 
-      <section>
-        <h2 className="mb-2 text-lg font-semibold text-[#FFBA00]">Amanhã</h2>
-        {tomorrowAppointments.length === 0 ? (
-          <p className="text-gray-500">Nenhum atendimento amanhã.</p>
-        ) : (
-          <ul className="space-y-2">
-            {tomorrowAppointments.map((a) => (
-              <li
-                key={a.id}
-                className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+        <Card>
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-sm font-normal">Serviços cadastrados</CardTitle>
+            <CardDescription className="text-xs">{servicesCount}</CardDescription>
+          </CardHeader>
+          <CardFooter>
+            <Link href="/services" className="text-brand-primary text-sm hover:underline font-medium">
+              Ver serviços →
+            </Link>
+          </CardFooter>
+        </Card>
+
+        <Card>
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-sm font-normal">Total de atendimentos</CardTitle>
+            <CardDescription className="text-xs">{appointmentsCount}</CardDescription>
+          </CardHeader>
+          <CardFooter>
+            <Link href="/appointments" className="text-brand-primary text-sm hover:underline font-medium">
+              Ver agenda →
+            </Link>
+          </CardFooter>
+        </Card>
+
+        <Card>
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-sm font-normal">Atendimentos hoje</CardTitle>
+            <CardDescription className="text-xs">{todayAppointments.length}</CardDescription>
+          </CardHeader>
+          <CardFooter>
+            <Link href="/appointments?from=today" className="text-brand-primary text-sm hover:underline font-medium">
+              Ver detalhes →
+            </Link>
+          </CardFooter>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Atendimentos de hoje</CardTitle>
+          <CardDescription>
+            {todayAppointments.length === 0
+              ? "Nenhum atendimento agendado para hoje."
+              : "Próximos atendimentos programados para hoje."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-lg border border-gray-200 bg-white p-1">
+            {todayAppointments.length === 0 ? (
+              <div className="p-4 text-center text-sm text-gray-500">
+                Sem atendimentos agendados para hoje.
+              </div>
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {todayAppointments.map((a) => (
+                  <li key={a.id} className="px-4 py-3 flex justify-between items-center hover:bg-gray-50">
+                    <div>
+                      <p className="font-medium text-gray-900">{a.dog.name}</p>
+                      <p className="text-xs text-gray-500">{a.service.name}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium text-gray-900 text-sm">
+                        {a.scheduledAt.toLocaleTimeString("pt-BR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                      <Badge variant="scheduled" className="mt-1">
+                        {a.status}
+                      </Badge>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <Card>
+          <CardContent className="p-6">
+            <h3 className="text-sm font-medium text-gray-900 mb-3">Ações rápidas</h3>
+            <div className="space-y-2">
+              <Link
+                href="/dogs/new"
+                className="block px-4 py-3 rounded-lg border border-gray-200 bg-white text-sm text-brand-primary hover:bg-brand-light hover:text-brand-dark transition-colors"
               >
-                <div className="flex justify-between">
-                  <span className="font-medium">{a.dog.name}</span>
-                  <span className="text-sm text-gray-600">
-                    {a.scheduledAt.toLocaleTimeString("pt-BR", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-500">{a.service.name}</p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+                Cadastrar cão
+              </Link>
+              <Link
+                href="/services/new"
+                className="block px-4 py-3 rounded-lg border border-gray-200 bg-white text-sm text-brand-primary hover:bg-brand-light hover:text-brand-dark transition-colors"
+              >
+                Cadastrar serviço
+              </Link>
+              <Link
+                href="/appointments/new"
+                className="block px-4 py-3 rounded-lg border border-gray-200 bg-white text-sm text-brand-primary hover:bg-brand-light hover:text-brand-dark transition-colors"
+              >
+                Novo atendimento
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

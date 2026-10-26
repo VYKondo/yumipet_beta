@@ -4,7 +4,8 @@ import { NextResponse } from "next/server";
 import { startOfDaySP, endOfDaySP } from "@/lib/dates";
 
 export async function GET(req: Request) {
-  await requireUser();
+  const token = req.headers.get("Authorization")?.replace("Bearer ", "");
+  await requireUser(token);
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date");
   const targetDate = date ? new Date(date) : new Date();

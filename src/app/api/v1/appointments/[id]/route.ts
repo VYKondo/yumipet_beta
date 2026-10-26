@@ -1,48 +1,52 @@
-import { prisma } from "@/server/db";
 import { requireUser } from "@/server/auth";
-import { NextResponse } from "next/server";
+import { ok, badRequest, notFound, withHandler, toNextResponse } from "@/lib/http";
+import { updateAppointmentSchema } from "@/server/modules/appointments/appointments.schemas";
+import {
+  getAppointment,
+  updateAppointment,
+  cancelAppointment,
+} from "@/server/modules/appointments/appointments.service";
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  await requireUser();
-  const appointment = await prisma.appointment.findUnique({
-    where: { id: (await params).id },
-    include: { dog: true, service: true },
+type Params = { params: Promise<{ id: string }> };
+
+export async function GET(req: Request, { params }: Params) {
+  const token = req.headers.get("Authorization")?.replace("Bearer ", "");
+  await requireUser(token);
+  const result = await withHandler(async () => {
+    const { id } = await params;
+    const appointment = await getAppointment(id);
+    if (!appointment) return notFound("Agendamento não encontrado");
+    return ok(appointment);
   });
-  if (!appointment) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(appointment);
+  return toNextResponse(result);
 }
 
-export async function PUT(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  await requireUser();
-  const body = await req.json();
-  const appointment = await prisma.appointment.update({
-    where: { id: (await params).id },
-    data: {
-      dogId: body.dogId,
-      serviceId: body.serviceId,
-      scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : undefined,
-      durationMin: body.durationMin,
-      price: body.price,
-      status: body.status,
-      notes: body.notes || null,
-      contactPhone: body.contactPhone || null,
-    },
-    include: { dog: true, service: true },
+export async function PATCH(req: Request, { params }: Params) {
+  const token = req.headers.get("Authorization")?.replace("Bearer ", "");
+  await requireUser(token);
+  const result = await withHandler(async () => {
+    const { id } = await params;
+    const body = await req.json();
+    const parsed = updateAppointmentSchema.safeParse(body);
+    if (!parsed.success) {
+      return badRequest(
+        "Dados inválidos",
+        parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")
+      );
+    }
+    const appointment = await updateAppointment(id, parsed.data);
+    return ok(appointment);
   });
-  return NextResponse.json(appointment);
+  return toNextResponse(result);
 }
 
-export async function DELETE(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  await requireUser();
-  await prisma.appointment.delete({ where: { id: (await params).id } });
-  return NextResponse.json({ ok: true });
+export async function DELETE(req: Request, { params }: Params) {
+  const token = req.headers.get("Authorization")?.replace("Bearer ", "");
+  await requireUser(token);
+  const result = await withHandler(async () => {
+    const { id } = await params;
+    const appointment = await cancelAppointment(id);
+    return ok(appointment);
+  });
+  return toNextResponse(result);
 }

@@ -1,26 +1,47 @@
-import { prisma } from "@/server/db";
-import { requireUser } from "@/server/auth";
 import { NextResponse } from "next/server";
+import { requireUser } from "@/server/auth";
+import { ok, badRequest, withHandler, toNextResponse } from "@/lib/http";
+import {
+  createServiceSchema,
+  listServicesQuerySchema,
+} from "@/server/modules/services/services.schemas";
+import type { ListServicesResult } from "@/server/modules/services/services.schemas";
+import {
+  listServices,
+  createService,
+} from "@/server/modules/services/services.service";
 
-export async function GET() {
-  await requireUser();
-  const services = await prisma.service.findMany({
-    include: { _count: { select: { appointments: true } } },
-    orderBy: { name: "asc" },
+export async function GET(req: Request) {
+  const token = req.headers.get("Authorization")?.replace("Bearer ", "");
+  await requireUser(token);
+  const result = await withHandler(async () => {
+    const url = new URL(req.url);
+    const parsed = listServicesQuerySchema.parse({
+      search: url.searchParams.get("search") ?? undefined,
+      active: url.searchParams.get("active") ?? undefined,
+      page: url.searchParams.get("page") ?? undefined,
+      pageSize: url.searchParams.get("pageSize") ?? undefined,
+    });
+    const services = await listServices(parsed);
+    return ok(services);
   });
-  return NextResponse.json(services);
+  return toNextResponse(result);
 }
 
 export async function POST(req: Request) {
-  await requireUser();
-  const body = await req.json();
-  const service = await prisma.service.create({
-    data: {
-      name: body.name,
-      basePrice: body.basePrice,
-      defaultDurationMin: body.defaultDurationMin,
-      active: body.active ?? true,
-    },
+  const token = req.headers.get("Authorization")?.replace("Bearer ", "");
+  await requireUser(token);
+  const result = await withHandler(async () => {
+    const body = await req.json();
+    const parsed = createServiceSchema.safeParse(body);
+    if (!parsed.success) {
+      return badRequest(
+        "Dados inválidos",
+        parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")
+      );
+    }
+    const service = await createService(parsed.data);
+    return ok(service, 201);
   });
-  return NextResponse.json(service, { status: 201 });
+  return toNextResponse(result);
 }

@@ -1,9 +1,46 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { updateDogAction } from "./actions";
+
 export function DogEditForm({ dog }: { dog: any }) {
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+
+    try {
+      await updateDogAction(dog.id, {
+        name: formData.get("name") as string,
+        breed: (formData.get("breed") as string) || undefined,
+        tutorName: formData.get("tutorName") as string,
+        tutorPhone: formData.get("tutorPhone") as string,
+        active: formData.get("active") === "on",
+      });
+      router.push("/dogs");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao atualizar o cão");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-      <form className="space-y-4">
+      {error && (
+        <div className="mb-4 p-3 rounded-lg bg-red-50 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label htmlFor="name" className="block text-sm font-medium text-gray-700">
@@ -55,6 +92,7 @@ export function DogEditForm({ dog }: { dog: any }) {
         <div className="flex items-center gap-2">
           <input
             id="active"
+            name="active"
             type="checkbox"
             defaultChecked={dog.active}
             className="rounded border-gray-300 text-[#791286] focus:ring-[#791286]"
@@ -65,9 +103,10 @@ export function DogEditForm({ dog }: { dog: any }) {
         </div>
         <button
           type="submit"
-          className="w-full rounded-lg bg-[#791286] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5A0D66]"
+          disabled={loading}
+          className="w-full rounded-lg bg-[#791286] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5A0D66] disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Salvar
+          {loading ? "Atualizando..." : "Salvar"}
         </button>
       </form>
     </div>

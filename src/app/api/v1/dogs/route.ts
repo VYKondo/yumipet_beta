@@ -1,27 +1,45 @@
-import { prisma } from "@/server/db";
-import { requireUser } from "@/server/auth";
 import { NextResponse } from "next/server";
+import { requireUser } from "@/server/auth";
+import { ok, badRequest, withHandler, toNextResponse } from "@/lib/http";
+import {
+  createDogSchema,
+  listDogsQuerySchema,
+  type ListDogsQuery,
+} from "@/server/modules/dogs/dogs.schemas";
+import { listDogs, createDog } from "@/server/modules/dogs/dogs.service";
+import type { ListDogsResult } from "@/server/modules/dogs/dogs.schemas";
 
-export async function GET() {
-  await requireUser();
-  const dogs = await prisma.dog.findMany({
-    include: { _count: { select: { appointments: true } } },
-    orderBy: { name: "asc" },
+export async function GET(req: Request) {
+  const token = req.headers.get("Authorization")?.replace("Bearer ", "");
+  await requireUser(token);
+  const result = await withHandler(async () => {
+    const url = new URL(req.url);
+    const parsed = listDogsQuerySchema.parse({
+      search: url.searchParams.get("search") ?? undefined,
+      active: url.searchParams.get("active") ?? undefined,
+      page: url.searchParams.get("page") ?? undefined,
+      pageSize: url.searchParams.get("pageSize") ?? undefined,
+    });
+    const dogs = await listDogs(parsed);
+    return ok(dogs);
   });
-  return NextResponse.json(dogs);
+  return toNextResponse(result);
 }
 
 export async function POST(req: Request) {
-  await requireUser();
-  const body = await req.json();
-  const dog = await prisma.dog.create({
-    data: {
-      name: body.name,
-      breed: body.breed || null,
-      tutorName: body.tutorName,
-      tutorPhone: body.tutorPhone,
-      active: body.active ?? true,
-    },
+  const token = req.headers.get("Authorization")?.replace("Bearer ", "");
+  await requireUser(token);
+  const result = await withHandler(async () => {
+    const body = await req.json();
+    const parsed = createDogSchema.safeParse(body);
+    if (!parsed.success) {
+      return badRequest(
+        "Dados inválidos",
+        parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")
+      );
+    }
+    const dog = await createDog(parsed.data);
+    return ok(dog, 201);
   });
-  return NextResponse.json(dog, { status: 201 });
+  return toNextResponse(result);
 }

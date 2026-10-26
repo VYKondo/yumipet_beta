@@ -1,19 +1,31 @@
 import { prisma } from "@/server/db";
 import { requireUser } from "@/server/auth";
 import Link from "next/link";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
 import { formatBRL } from "@/lib/money";
+export const dynamic = "force-dynamic";
 
-export const instant = false;
+const STATUS_VARIANT = {
+  SCHEDULED: "scheduled",
+  DONE: "done",
+  CANCELED: "canceled",
+} as const;
 
-export default async function DogViewPage({
+export default async function DogDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   await requireUser();
 
+  const { id } = await params;
+
   const dog = await prisma.dog.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       appointments: {
         include: { service: true },
@@ -24,76 +36,122 @@ export default async function DogViewPage({
 
   if (!dog) {
     return (
-      <div className="mx-auto max-w-lg space-y-6">
-        <h1 className="text-2xl font-bold text-gray-900">Cão não encontrado</h1>
-        <Link href="/dogs" className="text-[#791286] hover:underline">
-          Voltar
-        </Link>
+      <div className="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8 space-y-6">
+        <PageHeader title="Cão não encontrado" description="" />
+        <EmptyState
+          title="Cão não encontrado"
+          description="O cão solicitado não existe ou foi removido."
+          action={{ href: "/dogs", label: "Voltar para a lista" }}
+        />
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">{dog.name}</h1>
-        <div className="flex gap-2">
-          <Link
-            href={`/dogs/${dog.id}/edit`}
-            className="rounded-lg bg-[#791286] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5A0D66]"
-          >
-            Editar
-          </Link>
-          <Link
-            href="/dogs"
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            Voltar
-          </Link>
-        </div>
-      </div>
+    <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 space-y-6">
+      <PageHeader
+        title={dog.name}
+        description="Detalhes do cadastro do cão"
+        action={{ href: "/dogs", label: "Voltar para a lista" }}
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-          <h2 className="mb-2 text-sm font-semibold text-gray-700">Informações</h2>
-          <p className="text-sm text-gray-600"><strong>Raça:</strong> {dog.breed ?? "—"}</p>
-          <p className="text-sm text-gray-600"><strong>Tutor:</strong> {dog.tutorName}</p>
-          <p className="text-sm text-gray-600"><strong>Telefone:</strong> {dog.tutorPhone}</p>
-          <p className="text-sm text-gray-600"><strong>Status:</strong> {dog.active ? "Ativo" : "Inativo"}</p>
-        </div>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Informações do cão</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <p className="text-sm text-gray-500 uppercase tracking-wider font-semibold">Nome</p>
+            <p className="text-lg font-medium text-gray-900">{dog.name}</p>
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm text-gray-500 uppercase tracking-wider font-semibold">Raça</p>
+            <p className="text-lg font-medium text-gray-900">{dog.breed ?? "—"}</p>
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm text-gray-500 uppercase tracking-wider font-semibold">Tutor</p>
+            <p className="text-lg font-medium text-gray-900">{dog.tutorName}</p>
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm text-gray-500 uppercase tracking-wider font-semibold">Telefone</p>
+            <p className="text-lg font-medium text-gray-900">{dog.tutorPhone}</p>
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm text-gray-500 uppercase tracking-wider font-semibold">Status</p>
+            <Badge variant={dog.active ? "done" : "canceled"}>
+              {dog.active ? "Ativo" : "Inativo"}
+            </Badge>
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm text-gray-500 uppercase tracking-wider font-semibold">Total de atendimentos</p>
+            <p className="text-lg font-medium text-gray-900">{dog.appointments.length}</p>
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
-        <h2 className="px-4 py-3 border-b border-gray-200 text-sm font-semibold text-gray-700">
-          Atendimentos
-        </h2>
-        <div className="divide-y divide-gray-100">
-          {dog.appointments.length === 0 ? (
-            <div className="px-4 py-4 text-center text-gray-500">
-              Nenhum atendimento.
+      {dog.appointments.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Atendimentos</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead>
+                  <tr className="border-b border-gray-200 bg-gray-50">
+                    <th className="px-4 py-3 font-medium text-gray-700">Data/Hora</th>
+                    <th className="px-4 py-3 font-medium text-gray-700">Serviço</th>
+                    <th className="px-4 py-3 font-medium text-gray-700 text-right">Preço</th>
+                    <th className="px-4 py-3 font-medium text-gray-700 text-center">Status</th>
+                    <th className="px-4 py-3 font-medium text-gray-700 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {dog.appointments.map((a) => (
+                    <tr key={a.id}>
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-gray-900">
+                          {new Date(a.scheduledAt).toLocaleString("pt-BR", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">{a.service.name}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">
+                        {formatBRL(a.price)}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <Badge
+                          variant={STATUS_VARIANT[a.status as keyof typeof STATUS_VARIANT] ?? "default"}
+                        >
+                          {a.status}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Link
+                          href={`/appointments/${a.id}`}
+                          className="text-sm text-brand-primary hover:underline mr-2"
+                        >
+                          Ver
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          ) : (
-            dog.appointments.map((a) => (
-              <div key={a.id} className="px-4 py-3">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="font-medium text-gray-900">{a.service.name}</p>
-                    <p className="text-sm text-gray-500">
-                      {new Date(a.scheduledAt).toLocaleString("pt-BR")}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium">{formatBRL(a.price)}</p>
-                    <span className="text-xs px-2 py-1 rounded-full border text-[#791286] border-[#791286]">
-                      {a.status}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <EmptyState
+          title="Nenhum atendimento"
+          description="Este cão ainda não possui atendimentos agendados."
+          action={{ href: "/appointments/new", label: "Agendar atendimento" }}
+        />
+      )}
     </div>
   );
 }

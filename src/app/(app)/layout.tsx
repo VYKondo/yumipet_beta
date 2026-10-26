@@ -10,25 +10,26 @@ export default async function AppLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="bg-[#791286] px-4 py-3 shadow-md">
+      <header className="bg-brand-primary px-4 py-3 shadow-md">
         <nav className="flex items-center justify-between">
-          <Link href="/" className="text-lg font-bold text-white">
+          <Link href="/" className="flex items-center gap-2 text-lg font-bold text-white">
+            <img src="/logo.jpg" alt="PetShop Manager" className="h-8 w-8 rounded-md" />
             PetShop Manager
           </Link>
           <div className="flex gap-3 text-sm text-white/90">
-            <Link href="/appointments" className="hover:text-white">
+            <Link href="/appointments" className="hover:text-brand-secondary">
               Agenda
             </Link>
-            <Link href="/dogs" className="hover:text-white">
+            <Link href="/dogs" className="hover:text-brand-secondary">
               Cães
             </Link>
-            <Link href="/services" className="hover:text-white">
+            <Link href="/services" className="hover:text-brand-secondary">
               Serviços
             </Link>
-            <Link href="/reports" className="hover:text-white">
+            <Link href="/reports" className="hover:text-brand-secondary">
               Relatórios
             </Link>
-            <Link href="/settings" className="hover:text-white">
+            <Link href="/settings" className="hover:text-brand-secondary">
               Config
             </Link>
           </div>

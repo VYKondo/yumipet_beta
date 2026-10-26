@@ -1,40 +1,56 @@
-import { prisma } from "@/server/db";
 import { requireUser } from "@/server/auth";
-import { NextResponse } from "next/server";
+import { ok, badRequest, notFound, withHandler, toNextResponse } from "@/lib/http";
+import { updateServiceSchema } from "@/server/modules/services/services.schemas";
+import {
+  getService,
+  updateService,
+  deactivateService,
+} from "@/server/modules/services/services.service";
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  await requireUser();
-  const service = await prisma.service.findUnique({ where: { id: (await params).id } });
-  if (!service) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(service);
-}
+type Params = { params: Promise<{ id: string }> };
 
-export async function PUT(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  await requireUser();
-  const body = await req.json();
-  const service = await prisma.service.update({
-    where: { id: (await params).id },
-    data: {
-      name: body.name,
-      basePrice: body.basePrice,
-      defaultDurationMin: body.defaultDurationMin,
-      active: body.active,
-    },
+export async function GET(req: Request, { params }: Params) {
+  const token = req.headers.get("Authorization")?.replace("Bearer ", "");
+  await requireUser(token);
+  const result = await withHandler(async () => {
+    const { id } = await params;
+    const service = await getService(id);
+    if (!service) return notFound("Serviço não encontrado");
+    return ok(service);
   });
-  return NextResponse.json(service);
+  return toNextResponse(result);
 }
 
-export async function DELETE(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  await requireUser();
-  await prisma.service.delete({ where: { id: (await params).id } });
-  return NextResponse.json({ ok: true });
+export async function PUT(req: Request, { params }: Params) {
+  const token = req.headers.get("Authorization")?.replace("Bearer ", "");
+  await requireUser(token);
+  const result = await withHandler(async () => {
+    const { id } = await params;
+    const body = await req.json();
+    const parsed = updateServiceSchema.safeParse(body);
+    if (!parsed.success) {
+      return badRequest(
+        "Dados inválidos",
+        parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")
+      );
+    }
+    const existing = await getService(id);
+    if (!existing) return notFound("Serviço não encontrado");
+    const service = await updateService(id, parsed.data);
+    return ok(service);
+  });
+  return toNextResponse(result);
+}
+
+export async function DELETE(req: Request, { params }: Params) {
+  const token = req.headers.get("Authorization")?.replace("Bearer ", "");
+  await requireUser(token);
+  const result = await withHandler(async () => {
+    const { id } = await params;
+    const existing = await getService(id);
+    if (!existing) return notFound("Serviço não encontrado");
+    const service = await deactivateService(id);
+    return ok(service);
+  });
+  return toNextResponse(result);
 }

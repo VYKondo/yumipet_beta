@@ -1,34 +1,19 @@
-import { prisma } from "@/server/db";
 import { NextResponse } from "next/server";
-import { startOfDaySP, endOfDaySP, tomorrowSP } from "@/lib/dates";
+import { withHandler, unauthorized, ok, toNextResponse } from "@/lib/http";
+import { env } from "@/lib/env.server";
+import { sendTomorrowReminders } from "@/server/modules/reminders/reminders.service";
 
 export async function GET(req: Request) {
   const authHeader = req.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!env.CRON_SECRET || authHeader !== `Bearer ${env.CRON_SECRET}`) {
+    return toNextResponse(unauthorized("Unauthorized"));
   }
 
-  const tomorrowStart = startOfDaySP(tomorrowSP());
-  const tomorrowEnd = endOfDaySP(tomorrowSP());
-
-  const appointments = await prisma.appointment.findMany({
-    where: {
-      scheduledAt: { gte: tomorrowStart, lte: tomorrowEnd },
-      status: { in: ["SCHEDULED", "CONFIRMED"] },
-    },
-    include: { dog: true, service: true },
+  const result = await withHandler(async () => {
+    const results = await sendTomorrowReminders();
+    const sent = results.filter((r) => r.success).length;
+    const failed = results.filter((r) => !r.success).length;
+    return ok({ sent, failed, total: results.length, results });
   });
-
-  for (const appointment of appointments) {
-    // WhatsApp reminder sending would go here
-    await prisma.whatsappLog.create({
-      data: {
-        appointmentId: appointment.id,
-        direction: "OUTBOUND",
-        status: "SENT",
-      },
-    });
-  }
-
-  return NextResponse.json({ sent: appointments.length });
+  return toNextResponse(result);
 }

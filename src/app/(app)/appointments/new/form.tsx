@@ -1,5 +1,9 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { createAppointmentAction } from "./actions";
+
 export function NewAppointmentForm({
   dogs,
   services,
@@ -7,15 +11,58 @@ export function NewAppointmentForm({
   dogs: any[];
   services: any[];
 }) {
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+
+    try {
+      await createAppointmentAction({
+        dogId: formData.get("dogId") as string,
+        serviceId: formData.get("serviceId") as string,
+        scheduledAt: new Date(
+          (formData.get("scheduledAt") as string) || ""
+        ).toISOString(),
+        durationMin: Number(formData.get("durationMin")),
+        price: Number(formData.get("price")),
+        taxidogPrice: 0,
+        status: (formData.get("status") as import("@/server/modules/appointments/appointments.schemas").AppointmentStatus) ||
+          "SCHEDULED",
+        notes: (formData.get("notes") as string) || undefined,
+        contactPhone: (formData.get("contactPhone") as string) || undefined,
+      });
+      router.push("/appointments");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Erro ao salvar o atendimento"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-      <form className="space-y-4">
+      {error && (
+        <div className="mb-4 p-3 rounded-lg bg-red-50 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label htmlFor="dogId" className="block text-sm font-medium text-gray-700">
             Cão
           </label>
           <select
             id="dogId"
+            name="dogId"
             required
             className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#791286] focus:outline-none focus:ring-1 focus:ring-[#791286]"
           >
@@ -33,6 +80,7 @@ export function NewAppointmentForm({
           </label>
           <select
             id="serviceId"
+            name="serviceId"
             required
             className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#791286] focus:outline-none focus:ring-1 focus:ring-[#791286]"
           >
@@ -50,6 +98,7 @@ export function NewAppointmentForm({
           </label>
           <input
             id="scheduledAt"
+            name="scheduledAt"
             required
             type="datetime-local"
             className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#791286] focus:outline-none focus:ring-1 focus:ring-[#791286]"
@@ -62,6 +111,7 @@ export function NewAppointmentForm({
             </label>
             <input
               id="durationMin"
+              name="durationMin"
               type="number"
               min="1"
               defaultValue="30"
@@ -74,6 +124,7 @@ export function NewAppointmentForm({
             </label>
             <input
               id="price"
+              name="price"
               type="number"
               step="0.01"
               min="0"
@@ -87,6 +138,7 @@ export function NewAppointmentForm({
           </label>
           <select
             id="status"
+            name="status"
             className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#791286] focus:outline-none focus:ring-1 focus:ring-[#791286]"
           >
             <option value="SCHEDULED">Agendado</option>
@@ -102,6 +154,7 @@ export function NewAppointmentForm({
           </label>
           <textarea
             id="notes"
+            name="notes"
             rows={3}
             className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#791286] focus:outline-none focus:ring-1 focus:ring-[#791286]"
           />
@@ -112,15 +165,17 @@ export function NewAppointmentForm({
           </label>
           <input
             id="contactPhone"
+            name="contactPhone"
             type="tel"
             className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#791286] focus:outline-none focus:ring-1 focus:ring-[#791286]"
           />
         </div>
         <button
           type="submit"
-          className="w-full rounded-lg bg-[#791286] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5A0D66]"
+          disabled={loading}
+          className="w-full rounded-lg bg-[#791286] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5A0D66] disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Salvar
+          {loading ? "Salvando..." : "Salvar"}
         </button>
       </form>
     </div>

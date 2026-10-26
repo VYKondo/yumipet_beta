@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { env } from "@/lib/env.server";
 
-export async function requireUser() {
+export async function requireUser(token?: string) {
   const cookieStore = await cookies();
   const supabase = createServerClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
@@ -23,14 +23,11 @@ export async function requireUser() {
     }
   );
 
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getUser(token);
 
-  if (error || !user) {
+  if (error || !data?.user) {
     throw new Error("Unauthorized");
   }
 
-  return user;
+  return data.user;
 }

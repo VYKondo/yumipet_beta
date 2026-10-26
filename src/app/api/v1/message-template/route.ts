@@ -1,33 +1,32 @@
-import { prisma } from "@/server/db";
 import { requireUser } from "@/server/auth";
-import { NextResponse } from "next/server";
+import { ok, badRequest, withHandler, toNextResponse } from "@/lib/http";
+import { messageTemplateSchema } from "@/server/modules/message-template/message-template.schemas";
+import { getMessageTemplate, updateMessageTemplate } from "@/server/modules/message-template/message-template.service";
 
-export async function GET() {
-  await requireUser();
-  const template = await prisma.messageTemplate.findUnique({ where: { id: "default" } });
-  return NextResponse.json(template);
+export async function GET(req: Request) {
+  const token = req.headers.get("Authorization")?.replace("Bearer ", "");
+  await requireUser(token);
+  const result = await withHandler(async () => {
+    const template = await getMessageTemplate();
+    return ok(template);
+  });
+  return toNextResponse(result);
 }
 
 export async function PUT(req: Request) {
-  await requireUser();
-  const body = await req.json();
-  const template = await prisma.messageTemplate.upsert({
-    where: { id: "default" },
-    update: {
-      name: body.name,
-      metaTemplateName: body.metaTemplateName,
-      languageCode: body.languageCode,
-      variableOrder: body.variableOrder,
-      previewContent: body.previewContent,
-    },
-    create: {
-      id: "default",
-      name: body.name,
-      metaTemplateName: body.metaTemplateName,
-      languageCode: body.languageCode,
-      variableOrder: body.variableOrder,
-      previewContent: body.previewContent,
-    },
+  const token = req.headers.get("Authorization")?.replace("Bearer ", "");
+  await requireUser(token);
+  const result = await withHandler(async () => {
+    const body = await req.json();
+    const parsed = messageTemplateSchema.safeParse(body);
+    if (!parsed.success) {
+      return badRequest(
+        "Dados inválidos",
+        parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")
+      );
+    }
+    const template = await updateMessageTemplate(parsed.data);
+    return ok(template);
   });
-  return NextResponse.json(template);
+  return toNextResponse(result);
 }
